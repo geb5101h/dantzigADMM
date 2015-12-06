@@ -1,7 +1,7 @@
 # dantzigADMM
 Implementation of the Dantzig Selector for Apache Spark
 
-The Dantzig selector (Candes & Tao, 2007) is a method for learning linear models. It is the solution to
+The Dantzig selector (Candes & Tao, 2007) is a method for learning linear models and high-dimensional model selection. It is the solution to
 
 ![Latex of model](https://www.dropbox.com/s/soayi0cqf97p5yd/dantzig.png?dl=1)
 
