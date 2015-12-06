@@ -11,24 +11,31 @@ import org.apache.spark.mllib.linalg.distributed.RowMatrix
 /*
  * Implements the Dantzig selector, which is the solution to
  * min{b} ||b||_1 
- * subject to ||X(y-Xb)||_Inf <= lambda
+ * subject to ||X'(y-Xb)||_Inf <= lambda
  * 
  * We solve using the ADMM algorithm
  */
 class DantzigSelectorADMM(
-    private var convergenceTol: Double,
-    private var maxIterations: Int,
-    private var regParam: Double) extends Serializable {
+    private var convergenceTol: Double = 1.0e-5,
+    private var maxIterations: Int = 100,
+    private var regParam: Double = 1.0,
+    private var rho: Double = 1.0) extends Serializable {
 
   def run(data: RDD[(Double, Vector)]): DantzigSelectorModel = {
 
-    //currently only supports DenseVectors
+    /* 
+     * currently only supports DenseVector
+     * TODO: SparseVector support for large d,
+     * RowMatrix support for A for large n
+     */
+    
     val mat = new RowMatrix(data
       .map(x => Vectors.dense(Array(x._1, 1.0) ++ x._2.toArray)))
     val covMat = mat.computeCovariance().toBreeze.toDenseMatrix.toDenseMatrix
     val d = covMat.rows - 1
     val r = covMat(::, 0)
     val A = covMat(1 to d, 1 to d)
+    val gamma = eigSym(A).eigenvalues(0)
 
     var iter = 1
     var tol = Inf
@@ -41,7 +48,8 @@ class DantzigSelectorADMM(
 
       alphaNew = DantzigSelector.winterize(alphaOld + r - aTimesBetaOld, regParam)
 
-      betaNew = DantzigSelector.softThreshold(betaOld - A.t * (aTimesBetaOld - uOld + alphaNew - r), 2.0)
+      betaNew = DantzigSelector.softThreshold(betaOld - A.t * (aTimesBetaOld - uOld + alphaNew - r) / gamma,
+        1 / (gamma * rho))
 
       uNew = uOld + r - alphaNew - A * betaNew
 
