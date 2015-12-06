@@ -16,22 +16,34 @@ import org.apache.spark.mllib.linalg.distributed.RowMatrix
  * We solve using the ADMM algorithm
  */
 class DantzigSelectorADMM(
-    private var convergenceTol: Double = 1.0e-5,
-    private var maxIterations: Int = 100,
-    private var regParam: Double = 1.0,
-    private var rho: Double = 1.0) extends Serializable {
+    private var convergenceTol: Double,
+    private var maxIterations: Int,
+    private var regParam: Double,
+    private var rho: Double) extends Serializable {
+
+  def this(convergenceTol: Double, maxIterations: Int, regParam: Double) = this(convergenceTol, maxIterations, regParam, 1.0)
+
+  def this() = this(1.0e-5, 100, 1e-3, 1.0)
+
+  def setRegParam(rp: Double) = { regParam = rp }
+
+  def setConvergenceTol(ct: Double) = { convergenceTol = ct }
+
+  def setMaxIterations(mi: Int) = { maxIterations = mi }
 
   def run(data: RDD[(Double, Vector)]): DantzigSelectorModel = {
 
     /* 
-     * currently only supports DenseVector
+     * Currently only supports DenseVector
      * TODO: SparseVector support for large d,
-     * RowMatrix support for A for large n
+     * RowMatrix support for A for large n. As-is,
+     * not suitable for very large d as the covariance
+     * matrix of the predictors is stored as a local matrix
      */
-    
+
     val mat = new RowMatrix(data
       .map(x => Vectors.dense(Array(x._1, 1.0) ++ x._2.toArray)))
-    val covMat = mat.computeCovariance().toBreeze.toDenseMatrix.toDenseMatrix
+    val covMat = mat.computeCovariance().toBreeze.toDenseMatrix
     val d = covMat.rows - 1
     val r = covMat(::, 0)
     val A = covMat(1 to d, 1 to d)
@@ -40,7 +52,7 @@ class DantzigSelectorADMM(
     var iter = 1
     var tol = Inf
     var alphaOld, betaOld, uOld, alphaNew, betaNew, uNew = BV[Double](Array.fill(d)(0.0))
-    while (iter <= maxIterations || tol >= convergenceTol) {
+    while (iter <= maxIterations && tol >= convergenceTol) {
       alphaOld = alphaNew
       betaOld = betaNew
       uOld = uNew
@@ -91,9 +103,11 @@ object DantzigSelector {
   }
 
 }
+
 class DantzigSelectorModel(
   weights: Vector,
   intercept: Double) extends GeneralizedLinearModel(weights, intercept)
+    with RegressionModel
     with Serializable {
 
   protected def predictPoint(
