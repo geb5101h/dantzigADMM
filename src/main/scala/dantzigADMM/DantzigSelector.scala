@@ -44,22 +44,27 @@ class DantzigSelectorADMM(
     val mat = new RowMatrix(data
       .map(x => Vectors.dense(Array(x._1, 1.0) ++ x._2.toArray)))
 
-    val covMat = mat.computeCovariance().toBreeze.toDenseMatrix
-    val d = covMat.rows - 1
-    val r = covMat(1 to d, 0)
-    var A = covMat(1 to d, 1 to d)
-    A = (A + A.t)/2.0
+    val n = data.count
+
+    val gram = mat.computeGramianMatrix().toBreeze.toDenseMatrix
+    val d = gram.rows - 1
+    val r = (1.0 / n) * gram(1 to d, 0)
+    var A = (1.0 / n) * gram(1 to d, 1 to d)
+    A = (A + A.t) / 2.0
     val gamma = eigSym(A).eigenvalues(d - 1) //TODO
+
+    println("the solution:" + (A \ r).toArray.map(_.toString).reduce(_ + "," + _))
 
     var iter = 1
     var tol = Inf
-    var alphaOld, betaOld, uOld, alphaNew, betaNew, uNew = BV[Double](Array.fill(d)(0.0))
+    var alphaOld, betaOld, uOld, alphaNew, betaNew, uNew, aTimesBetaOld = BV[Double](Array.fill(d)(0.0))
 
     while (iter <= maxIterations && tol >= convergenceTol) {
+
       alphaOld = alphaNew
       betaOld = betaNew
       uOld = uNew
-      val aTimesBetaOld = A * betaOld
+      aTimesBetaOld = A * betaOld
 
       alphaNew = DantzigSelector.winterize(uOld + r - aTimesBetaOld, regParam)
 
@@ -70,9 +75,10 @@ class DantzigSelectorADMM(
 
       val uDiff = uNew - uOld
       val betaDiff = betaNew - betaOld
-      tol = (betaDiff dot betaDiff) //+ (uDiff dot uDiff)
+      tol = (betaDiff dot betaDiff) + (uDiff dot uDiff)
 
       println("tolerance: " + tol)
+      print("beta:" + betaNew.toArray.map(_.toString).reduce(_ + "," + _))
       iter += 1
     }
 
