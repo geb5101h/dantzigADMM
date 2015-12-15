@@ -43,15 +43,17 @@ class DantzigSelectorADMM(
 
     val mat = new RowMatrix(data
       .map(x => Vectors.dense(Array(x._1, 1.0) ++ x._2.toArray)))
+
     val covMat = mat.computeCovariance().toBreeze.toDenseMatrix
     val d = covMat.rows - 1
-    val r = covMat(::, 0)
+    val r = covMat(1 to d, 0)
     val A = covMat(1 to d, 1 to d)
-    val gamma = eigSym(A).eigenvalues(0)
+    val gamma = 1.0 //eigSym(A).eigenvalues(0) //TODO
 
     var iter = 1
     var tol = Inf
     var alphaOld, betaOld, uOld, alphaNew, betaNew, uNew = BV[Double](Array.fill(d)(0.0))
+
     while (iter <= maxIterations && tol >= convergenceTol) {
       alphaOld = alphaNew
       betaOld = betaNew
@@ -67,10 +69,13 @@ class DantzigSelectorADMM(
 
       val betaDiff = betaNew - betaOld
       tol = betaDiff dot betaDiff
+
+      println("tolerance: " + tol)
       iter += 1
     }
+
     //extract intercept from weights vector
-    val betaReturn = Vectors.fromBreeze(betaNew(-0))
+    val betaReturn = Vectors.fromBreeze(betaNew(1 to d-1).toDenseVector)
     val intReturn = betaNew(0)
 
     new DantzigSelectorModel(
