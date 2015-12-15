@@ -47,8 +47,9 @@ class DantzigSelectorADMM(
     val covMat = mat.computeCovariance().toBreeze.toDenseMatrix
     val d = covMat.rows - 1
     val r = covMat(1 to d, 0)
-    val A = covMat(1 to d, 1 to d)
-    val gamma = 1.0 //eigSym(A).eigenvalues(0) //TODO
+    var A = covMat(1 to d, 1 to d)
+    A = (A + A.t)/2.0
+    val gamma = eigSym(A).eigenvalues(d - 1) //TODO
 
     var iter = 1
     var tol = Inf
@@ -60,22 +61,23 @@ class DantzigSelectorADMM(
       uOld = uNew
       val aTimesBetaOld = A * betaOld
 
-      alphaNew = DantzigSelector.winterize(alphaOld + r - aTimesBetaOld, regParam)
+      alphaNew = DantzigSelector.winterize(uOld + r - aTimesBetaOld, regParam)
 
       betaNew = DantzigSelector.softThreshold(betaOld - A.t * (aTimesBetaOld - uOld + alphaNew - r) / gamma,
         1 / (gamma * rho))
 
       uNew = uOld + r - alphaNew - A * betaNew
 
+      val uDiff = uNew - uOld
       val betaDiff = betaNew - betaOld
-      tol = betaDiff dot betaDiff
+      tol = (betaDiff dot betaDiff) //+ (uDiff dot uDiff)
 
       println("tolerance: " + tol)
       iter += 1
     }
 
     //extract intercept from weights vector
-    val betaReturn = Vectors.fromBreeze(betaNew(1 to d-1).toDenseVector)
+    val betaReturn = Vectors.fromBreeze(betaNew(1 to d - 1).toDenseVector)
     val intReturn = betaNew(0)
 
     new DantzigSelectorModel(
@@ -102,7 +104,7 @@ object DantzigSelector {
     val len = x.size
     val xNew = x.copy
     for (i <- 0 to len - 1) {
-      xNew(i) = signum(xNew(i)) * max(0.0, math.abs(xNew(i) - lambda))
+      xNew(i) = signum(xNew(i)) * max(0.0, math.abs(xNew(i)) - lambda)
     }
     xNew
   }

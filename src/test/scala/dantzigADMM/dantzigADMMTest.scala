@@ -9,23 +9,23 @@ import org.apache.spark.mllib.linalg.{ Vectors, Vector, Matrices, Matrix }
 class dantzigADMMTest extends FunSuite {
 
   val dantzig = new DantzigSelectorADMM(
-    1e-3,
+    1e-5,
     100,
-    .001,
+    .00000,
     1.0)
 
   val rand = new scala.util.Random()
 
   val conf = new SparkConf()
     .setAppName("dantzigTest")
-    .setMaster("local[10]")
+    .setMaster("local[1]")
   val sc = new SparkContext(conf)
 
   val data = sc.parallelize(
     List.fill(1000) {
       (rand.nextDouble(), Vectors.dense(Array.fill(10) { rand.nextDouble() }))
     })
-
+    
   test("Testing on sample data") {
     val model = dantzig.run(data)
     println("Return intercept:" + model.intercept)
