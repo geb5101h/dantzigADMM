@@ -1,7 +1,7 @@
 package org.apache.spark.mllib.regression
 
 import org.apache.spark.mllib.linalg.{ Vector, Vectors, Matrix }
-import breeze.linalg.{ DenseVector => DBV, DenseMatrix => DBM, diag, max, min, norm, eigSym, Vector => BV, Matrix => BM }
+import breeze.linalg.{ DenseVector => DBV, DenseMatrix => DBM, diag, max, min, sum, norm, eigSym, Vector => BV, Matrix => BM }
 import breeze.math._
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
@@ -51,36 +51,50 @@ class DantzigSelectorADMM(
     val r = (1.0 / n) * gram(1 to d, 0)
     var A = (1.0 / n) * gram(1 to d, 1 to d)
     A = (A + A.t) / 2.0
-    val gamma = eigSym(A).eigenvalues(d - 1) //TODO
+    val gamma = breeze.linalg.sum(abs(A * A), breeze.linalg.Axis._0).max
+    //val gamma =math.pow(eigSym(A).eigenvalues(d - 1),2)
 
     println("the solution:" + (A \ r).toArray.map(_.toString).reduce(_ + "," + _))
 
     var iter = 1
     var tol = Inf
     var alphaOld, betaOld, uOld, alphaNew, betaNew, uNew, aTimesBetaOld = BV[Double](Array.fill(d)(0.0))
-
     while (iter <= maxIterations && tol >= convergenceTol) {
+      var maxDiff = 0.0
 
       alphaOld = alphaNew
       betaOld = betaNew
       uOld = uNew
       aTimesBetaOld = A * betaOld
 
-      alphaNew = DantzigSelector.winterize(uOld + r - aTimesBetaOld, regParam)
+      alphaNew = DantzigSelector.winterize(r - aTimesBetaOld - uOld, regParam)
+      //      println("alpha:" + alphaNew.toArray.map(_.toString).reduce(_ + "," + _))
 
-      betaNew = DantzigSelector.softThreshold(betaOld - A.t * (aTimesBetaOld - uOld + alphaNew - r) / gamma,
+      maxDiff = max(maxDiff, sum(abs(alphaNew.toDenseVector - alphaOld.toDenseVector)))
+
+      betaNew = DantzigSelector.softThreshold(betaOld - A * (aTimesBetaOld + uOld + alphaNew - r) / gamma,
         1 / (gamma * rho))
+      //    println("beta:" + betaNew.toArray.map(_.toString).reduce(_ + "," + _))
 
-      uNew = uOld + r - alphaNew - A * betaNew
+      maxDiff = max(maxDiff, sum(abs(betaNew.toDenseVector - betaOld.toDenseVector)))
+
+      uNew = uOld + (alphaNew + A * betaNew - r)
+
+      maxDiff = max(maxDiff, sum(abs(uNew.toDenseVector - uOld.toDenseVector)))
+
+      //  println("u:" + uNew.toArray.map(_.toString).reduce(_ + "," + _))
 
       val uDiff = uNew - uOld
-      val betaDiff = betaNew - betaOld
-      tol = (betaDiff dot betaDiff) + (uDiff dot uDiff)
+      //println("udiff:" + uDiff.toArray.map(_.toString).reduce(_ + "," + _))
 
-      println("tolerance: " + tol)
-      print("beta:" + betaNew.toArray.map(_.toString).reduce(_ + "," + _))
+      val betaDiff = betaNew - betaOld
+      tol = maxDiff
+
+      //  println("tolerance: " + tol)
       iter += 1
     }
+
+    println("Finished after " + iter + " iterations\nwith tolerance " + tol)
 
     //extract intercept from weights vector
     val betaReturn = Vectors.fromBreeze(betaNew(1 to d - 1).toDenseVector)
