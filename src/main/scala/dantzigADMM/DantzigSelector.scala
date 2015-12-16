@@ -54,8 +54,6 @@ class DantzigSelectorADMM(
     val gamma = breeze.linalg.sum(abs(A * A), breeze.linalg.Axis._0).max
     //val gamma =math.pow(eigSym(A).eigenvalues(d - 1),2)
 
-    println("the solution:" + (A \ r).toArray.map(_.toString).reduce(_ + "," + _))
-
     var iter = 1
     var tol = Inf
     var alphaOld, betaOld, uOld, alphaNew, betaNew, uNew, aTimesBetaOld = BV[Double](Array.fill(d)(0.0))
@@ -68,13 +66,11 @@ class DantzigSelectorADMM(
       aTimesBetaOld = A * betaOld
 
       alphaNew = DantzigSelector.winterize(r - aTimesBetaOld - uOld, regParam)
-      //      println("alpha:" + alphaNew.toArray.map(_.toString).reduce(_ + "," + _))
 
       maxDiff = max(maxDiff, sum(abs(alphaNew.toDenseVector - alphaOld.toDenseVector)))
 
       betaNew = DantzigSelector.softThreshold(betaOld - A * (aTimesBetaOld + uOld + alphaNew - r) / gamma,
         1 / (gamma * rho))
-      //    println("beta:" + betaNew.toArray.map(_.toString).reduce(_ + "," + _))
 
       maxDiff = max(maxDiff, sum(abs(betaNew.toDenseVector - betaOld.toDenseVector)))
 
@@ -82,15 +78,11 @@ class DantzigSelectorADMM(
 
       maxDiff = max(maxDiff, sum(abs(uNew.toDenseVector - uOld.toDenseVector)))
 
-      //  println("u:" + uNew.toArray.map(_.toString).reduce(_ + "," + _))
-
       val uDiff = uNew - uOld
-      //println("udiff:" + uDiff.toArray.map(_.toString).reduce(_ + "," + _))
 
       val betaDiff = betaNew - betaOld
       tol = maxDiff
 
-      //  println("tolerance: " + tol)
       iter += 1
     }
 
