@@ -78,9 +78,6 @@ class DantzigSelectorADMM(
 
       maxDiff = max(maxDiff, sum(abs(uNew.toDenseVector - uOld.toDenseVector)))
 
-      val uDiff = uNew - uOld
-
-      val betaDiff = betaNew - betaOld
       tol = maxDiff
 
       iter += 1
